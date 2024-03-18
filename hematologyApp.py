@@ -94,26 +94,10 @@ if uploaded_file:
             ax.set_xticks(range(len(grpNames)))
             ax.set_xticklabels(xticks, rotation=90)
 
-    sns.despine(bottom = False, left = False)
-
     for i in range((len(gridLocs) - len(gdf))):
         axes[gridLocs[len(gridLocs)-(i+1)]].axis('off')
 
+    sns.despine(bottom = False, left = False)
     plt.tight_layout()
 
-
-
-    
- #   with col2:
-   #     st.markdown("## Add References")
-  #      refs = st.multiselect(
-    #        'Select reference ranges to view',
-   #         ['SD Female ChemParter', 'SD ClinBridge', 'SD Female Taconic']
-    #        )
-   #     st.write("SD Female Chemparter - purple dash")
-   #     st.write("SD ClinBridge - red dash")
-   #     st.write("SD Female Taconic - green dash")
-   # with col1:
-    #    st.markdown("## Summary Table")
-    #    st.dataframe(agg)    
     st.pyplot(f)
