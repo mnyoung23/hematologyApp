@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
@@ -64,8 +65,6 @@ if uploaded_file:
     gridLocs = [(i,j) for i in [0,1,2,3,4,5] for j in [0,1,2,3]]
     gdf = df_melted.groupby('variable')
     dfkeys = list(np.unique(df_melted.variable))
-
-    st.write(dfkeys)
 
     f, axes = plt.subplots(6, 4, figsize = (15, 20))
 
