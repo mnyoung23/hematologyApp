@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+import string
 
 ### Dicts
 
@@ -33,10 +34,13 @@ with st.sidebar:
     uploaded_file = st.file_uploader("Choose a file")
 
     st.markdown("## Group Names")
-    st.write("Indicate the group assignments below in the form of a python dictionary (e.g. {G1:'100 mg/kg MR-001', G2: '200 mg/kg MRO-001})")
-    grps = st.text_input("")
+    st.write("Type group names as a comma separated list in the order of appearance on the x-axis (e.g. Group 1, Group 2, etc...)")
+    grps = st.text_area("", key=123)
 
-    st.write(grps)
+    st.markdown("## Colors")
+    st.write("Type colors in the order data appear on the x-axis (e.g. blue, blue, red, red, etc...)")
+
+    cmap = st.text_area("", key=234)    
 
 if uploaded_file:
     col1, col2 = st.columns(2)
@@ -57,7 +61,6 @@ if uploaded_file:
     df.columns=names
     df.loc[:, "Group"] = [i.split("-")[0] for i in df.iloc[:,0]]
     st.write(df)
-    
 
     df_melted = pd.melt(df.iloc[:,1:], id_vars=["Group"])
     cols = df.columns[2:].to_list()
@@ -66,16 +69,30 @@ if uploaded_file:
     gdf = df_melted.groupby('variable')
     dfkeys = list(np.unique(df_melted.variable))
 
-    f, axes = plt.subplots(6, 4, figsize = (15, 20))
+    f, axes = plt.subplots(6, 4, figsize = (10, 15))
 
+    xticks = grps.translate({ord(c): None for c in string.whitespace}).split(",")
+    cmap = cmap.translate({ord(c): None for c in string.whitespace}).split(",")
+
+    print()
     for name, g in gdf:
         ind = np.where(name == np.asarray(dfkeys))[0][0]
         ax = axes[gridLocs[ind]]
-        sns.barplot(x=g.Group, y=g.value, hue=g.Group, alpha=0.6, ax=ax, capsize=0.2,
-            linewidth=1, edgecolor="0")
-        sns.scatterplot(x=g.Group, y=g.value, hue=g.Group, alpha=0.6, ax=ax, linewidth=1, edgecolor="0")
+        if len(cmap) == len(np.unique(df.Group)):
+            sns.barplot(x=g.Group, y=g.value, hue=[cmap[np.where(i == np.unique(df.Group))[0][0]] for i in g.Group], alpha=0.6, ax=ax, capsize=0.2,
+                linewidth=1, edgecolor="0")
+            sns.scatterplot(x=g.Group, y=g.value, hue=[cmap[np.where(i == np.unique(df.Group))[0][0]] for i in g.Group], alpha=0.6, ax=ax, linewidth=1, edgecolor="0")
+        else:
+            sns.barplot(x=g.Group, y=g.value, hue=g.Group, alpha=0.6, ax=ax, capsize=0.2,
+                linewidth=1, edgecolor="0")
+            sns.scatterplot(x=g.Group, y=g.value, hue=g.Group, alpha=0.6, ax=ax, linewidth=1, edgecolor="0")
         ax.set(ylabel=dfkeys[ind], xlabel="")
         ax.get_legend().remove()
+
+        grpNames = np.unique(df.Group)
+        if len(xticks) == len(grpNames):
+            ax.set_xticks(range(len(grpNames)))
+            ax.set_xticklabels(xticks, rotation=90)
 
     sns.despine(bottom = False, left = False)
 
@@ -83,6 +100,8 @@ if uploaded_file:
         axes[gridLocs[len(gridLocs)-(i+1)]].axis('off')
 
     plt.tight_layout()
+
+
 
     
  #   with col2:
