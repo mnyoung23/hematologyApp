@@ -47,7 +47,7 @@ def preprocessData(file):
     return df
 
 @st.cache_data
-def generatePlots(df, cmap=[], xpos=[], dims=[10,15]):
+def generatePlots(df, cmap=[], xpos=[], dims=[10,15], ref="Clinbridge"):
     df_melted = pd.melt(df.iloc[:,1:], id_vars=["Group"])
     gdf = df_melted.groupby('variable')
     dfkeys = list(np.unique(df_melted.variable))
@@ -73,11 +73,14 @@ def generatePlots(df, cmap=[], xpos=[], dims=[10,15]):
         xaggs = [xdict[i] for i in agg.group]
         xlocs = sorted(xaggs)
 
+        if ref == "Clinbridge":
+            ax.fill_between([-10,10], [ratClinBridgeRef[name][0], ratClinBridgeRef[name][0]], [ratClinBridgeRef[name][1], ratClinBridgeRef[name][1]], color="gray", alpha=0.2)
+
         if len(cmap) == len(np.unique(df.Group)):
-            ax.bar(x=xaggs, height="mean", yerr="sem", color=[cmap[xlocs.index(i)] for i in xaggs], alpha=0.4, capsize=2, linewidth=1, edgecolor="black", data=agg)
+            ax.bar(x=xaggs, height="mean", yerr="sem", color=[cmap[xlocs.index(i)] for i in xaggs], capsize=2, linewidth=1, edgecolor="black", data=agg)
             ax.scatter(x=xs, y=g.value, color=[cmap[xlocs.index(i)] for i in xs], alpha=0.6, linewidth=1, edgecolor="black")
         else:
-            ax.bar(x=xaggs, height="mean", yerr="sem", color="gray", alpha=0.4, capsize=2, linewidth=1, edgecolor="black", data=agg)
+            ax.bar(x=xaggs, height="mean", yerr="sem", color="lightgray", capsize=2, linewidth=1, edgecolor="black", data=agg)
             ax.scatter(x=xs, y=g.value, color="black", alpha=0.6, linewidth=1, edgecolor="black")
         ax.set(ylabel=dfkeys[ind], xlabel="")
         if len(xpos) == len(grpNames):
@@ -87,6 +90,7 @@ def generatePlots(df, cmap=[], xpos=[], dims=[10,15]):
         ax.spines['right'].set_visible(False)
         ax.xaxis.set_tick_params(left='off', direction='out', width=1)
         ax.yaxis.set_tick_params(bottom='off', direction='out', width=1)
+        ax.set_xlim(np.min(xaggs)-1, np.max(xaggs)+1)
         #ax.get_legend().remove()
     
     for i in range((len(gridLocs) - len(gdf))):
@@ -113,7 +117,12 @@ with st.sidebar:
     grps = st.text_area("Type group names as a comma separated list in the order of appearance on the x-axis (e.g. Group 1, Group 2, etc...)","", key=2)
 
     st.markdown("## Colors")
-    cmap = st.text_area("Type colors in the order data appear on the x-axis (e.g. blue, blue, red, red, etc...)","", key=3)   
+    cmap = st.text_area("Type colors in the order data appear on the x-axis (e.g. blue, blue, red, red, etc...)","", key=3)
+
+    st.markdown("## Add Reference Ranges")
+    refs = st.selectbox(
+    'Select a reference range to add (optional).',
+    ("Clinbridge", "ChemPartner"))
 
 if uploaded_file:
     col1, col2 = st.columns(2)
@@ -131,16 +140,16 @@ if uploaded_file:
 
     if len(dims) == 2:
         dims = [int(i) for i in dims]
-        f, axes = generatePlots(df, cmap, xorder, dims)
+        f, axes = generatePlots(df, cmap, xorder, dims, ref=refs)
     else:
-        f, axes = generatePlots(df, cmap, xorder)
+        f, axes = generatePlots(df, cmap, xorder, ref=refs)
 
     if len(xticks) == len(grpNames):
         xorder = [int(i) for i in xorder]
         for i in gridLocs:
             axes[i].set_xticks(sorted(xorder))
             axes[i].set_xticklabels(xticks, rotation=90)
-            axes[i].set_xlim(-1, np.max(xorder)+1)
+            axes[i].set_xlim(np.min(xorder)-1, np.max(xorder)+1)
 
     if xlb != "":
         for i in gridLocs:
