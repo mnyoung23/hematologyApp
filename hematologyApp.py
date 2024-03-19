@@ -13,6 +13,13 @@ ratFemaleChemPartnerRef = {"WBC (×103/uL)":[5.44, 16.44], "Neut (%)":[4.4, 23.8
     "HGB (g/dL)":[123/10, 173/10], "HCT (%)":[35.2, 48.7], "MCV (fL)":[52.8, 62], "MCH (Pg)":[18.9, 21.8], 
     "MCHC (g/dL)":[329/10, 366/10], "PLT (×103/uL)":[193, 1427], "RDW (%)":[10.2, 12.9], "RBC (×106/uL)":[5.96, 8.62]}
 
+ratMaleChemPartnerRef = {"WBC (×103/uL)":[5.13, 15.65], "Neut (%)":[7.0, 26.6], "Neut (×103/uL)":[0.56,3.13], 
+    "Lymph (%)":[61.3, 85.9], "Lymph (×103/uL)":[3.6,12.22], "Mono (%)":[5.0, 15.7], "Mono (×103/uL)":[0.36, 1.8],
+    "Eos (%)":[0.2, 1.5], "Eos (×103/uL)":[0.02, 0.21], "Baso (%)":[0.1, 0.8], "Baso (×103/uL)":[0.01, 0.10],
+    "Luc (%)":[0, 0, 0, 0], "Luc (×103/uL)":[0, 0, 0, 0], "Retic (%)":[2.81, 12.0], "Retic (×109/L)":[0.2177*1000, 0.7148*1000], 
+    "HGB (g/dL)":[111/10, 161/10], "HCT (%)":[34.2, 48.4], "MCV (fL)":[54.7, 68.2], "MCH (Pg)":[19.0, 22.8], 
+    "MCHC (g/dL)":[318/10, 356/10], "PLT (×103/uL)":[15, 1514], "RDW (%)":[10.7, 14.1], "RBC (×106/uL)":[5.20, 8.30]}
+
 ratClinBridgeRef = {"WBC (×103/uL)":[3.3, 8.7], "Neut (%)":[3.3, 26.6], "Neut (×103/uL)":[0.3,1.7], 
     "Lymph (%)":[68.6, 94.5], "Lymph (×103/uL)":[2.6, 7.1], "Mono (%)":[0, 4.1], "Mono (×103/uL)":[0, 0.2],
     "Eos (%)":[0, 5.0], "Eos (×103/uL)":[0, 0.1], "Baso (%)":[0, 1.0], "Baso (×103/uL)":[0, 0.02],
@@ -27,6 +34,12 @@ ratTaconicFemaleRef = {"WBC (×103/uL)":[4.5, 7.5], "Neut (%)":[], "Neut (×103/
     "HGB (g/dL)":[15.5, 16.7], "HCT (%)":[51.2-2.6, 51.2+2.6], "MCV (fL)":[66, 67.8], "MCH (Pg)":[19.9, 22.1], 
     "MCHC (g/dL)":[], "PLT (×103/uL)":[1262.2-278.4, 1262.2+278.4], "RDW (%)":[], "RBC (×106/uL)":[7.4, 8.0]}
 
+refDict = {
+    "chempartner male":ratMaleChemPartnerRef, 
+    "chempartner female":ratFemaleChemPartnerRef, 
+    "clinbridge":ratClinBridgeRef,
+    "taconic female":ratTaconicFemaleRef
+    }
 
 #### Functions ####
 @st.cache_data
@@ -47,7 +60,7 @@ def preprocessData(file):
     return df
 
 @st.cache_data
-def generatePlots(df, cmap=[], xpos=[], dims=[10,15], ref="Clinbridge"):
+def generatePlots(df, cmap=[], xpos=[], dims=[10,15], ref=[], refxs=[]):
     df_melted = pd.melt(df.iloc[:,1:], id_vars=["Group"])
     gdf = df_melted.groupby('variable')
     dfkeys = list(np.unique(df_melted.variable))
@@ -72,9 +85,15 @@ def generatePlots(df, cmap=[], xpos=[], dims=[10,15], ref="Clinbridge"):
         xs = [xdict[i] for i in df.Group]
         xaggs = [xdict[i] for i in agg.group]
         xlocs = sorted(xaggs)
-
-        if ref == "Clinbridge":
-            ax.fill_between([-10,10], [ratClinBridgeRef[name][0], ratClinBridgeRef[name][0]], [ratClinBridgeRef[name][1], ratClinBridgeRef[name][1]], color="gray", alpha=0.2)
+        
+        
+        refxs = [i for i in refxs if i]
+        reflocs = [i.translate({ord(c): None for c in string.whitespace}).split(",") for i in refxs]
+                 
+        if (len(ref) > 0) & (len(reflocs) == len(ref)):
+            for i, r in enumerate(ref):
+                tempxlocs = [float(j) for j in reflocs[i]]
+                ax.fill_between([tempxlocs[0],tempxlocs[1]], [refDict[r][name][0], refDict[r][name][0]], [refDict[r][name][1], refDict[r][name][1]], color="gray", alpha=0.2, linewidth=0)
 
         if len(cmap) == len(np.unique(df.Group)):
             ax.bar(x=xaggs, height="mean", yerr="sem", color=[cmap[xlocs.index(i)] for i in xaggs], capsize=2, linewidth=1, edgecolor="black", data=agg)
@@ -120,9 +139,12 @@ with st.sidebar:
     cmap = st.text_area("Type colors in the order data appear on the x-axis (e.g. blue, blue, red, red, etc...)","", key=3)
 
     st.markdown("## Add Reference Ranges")
-    refs = st.selectbox(
-    'Select a reference range to add (optional).',
-    ("Clinbridge", "ChemPartner"))
+    refs = st.multiselect("## Select which reference ranges you want plotted.", ["chempartner male", "chempartner female", "clinbridge", "taconic female"])
+
+    refxs = []
+    for i, r in enumerate(refs):
+        temp = st.text_input(f'Input x-start and x-stop positions as comma separated integers for {r}.', key=i*100)
+        refxs.append(temp)
 
 if uploaded_file:
     col1, col2 = st.columns(2)
@@ -140,9 +162,9 @@ if uploaded_file:
 
     if len(dims) == 2:
         dims = [int(i) for i in dims]
-        f, axes = generatePlots(df, cmap, xorder, dims, ref=refs)
+        f, axes = generatePlots(df, cmap, xorder, dims, ref=refs, refxs=refxs)
     else:
-        f, axes = generatePlots(df, cmap, xorder, ref=refs)
+        f, axes = generatePlots(df, cmap, xorder, ref=refs, refxs=refxs)
 
     if len(xticks) == len(grpNames):
         xorder = [int(i) for i in xorder]
@@ -158,3 +180,4 @@ if uploaded_file:
     plt.tight_layout()
 
     st.pyplot(f)
+
