@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-import seaborn as sns
 import string
 
 ### Dicts
@@ -28,76 +27,125 @@ ratTaconicFemaleRef = {"WBC (×103/uL)":[4.5, 7.5], "Neut (%)":[], "Neut (×103/
     "HGB (g/dL)":[15.5, 16.7], "HCT (%)":[51.2-2.6, 51.2+2.6], "MCV (fL)":[66, 67.8], "MCH (Pg)":[19.9, 22.1], 
     "MCHC (g/dL)":[], "PLT (×103/uL)":[1262.2-278.4, 1262.2+278.4], "RDW (%)":[], "RBC (×106/uL)":[7.4, 8.0]}
 
-st.title('Hematology Analysis')
 
-with st.sidebar:
-    uploaded_file = st.file_uploader("Choose a file")
-
-    st.markdown("## Group Names")
-    st.write("Type group names as a comma separated list in the order of appearance on the x-axis (e.g. Group 1, Group 2, etc...)")
-    grps = st.text_area("", key=123)
-
-    st.markdown("## Colors")
-    st.write("Type colors in the order data appear on the x-axis (e.g. blue, blue, red, red, etc...)")
-
-    cmap = st.text_area("", key=234)    
-
-if uploaded_file:
-    col1, col2 = st.columns(2)
-
-    # To read file as bytes:
-    wb = pd.read_excel(uploaded_file, sheet_name=0)
-    
+#### Functions ####
+@st.cache_data
+def preprocessData(file):
+    wb = pd.read_excel(file, sheet_name=0)
+     
     ## Clean up data table
     data = wb.iloc[3:, :]
-    headerRows = wb.iloc[1:3, :]
     for i,val in enumerate(wb.iloc[1,:]):
-            if isinstance(wb.iloc[1,i], float):
-                 wb.iloc[1,i] = wb.iloc[1,i-1]
-
+        if isinstance(wb.iloc[1,i], float):
+            wb.iloc[1,i] = wb.iloc[1,i-1]
+        
     names = [str(wb.iloc[1,i]) + " (" + str(wb.iloc[2,i]) + ")" for i in range(len((wb.iloc[1,:])))]
     names[1] = "Group"
     df = pd.DataFrame(data)
     df.columns=names
     df.loc[:, "Group"] = [i.split("-")[0] for i in df.iloc[:,0]]
-    st.write(df)
+    return df
 
+@st.cache_data
+def generatePlots(df, cmap=[], xpos=[], dims=[10,15]):
     df_melted = pd.melt(df.iloc[:,1:], id_vars=["Group"])
-    cols = df.columns[2:].to_list()
-
-    gridLocs = [(i,j) for i in [0,1,2,3,4,5] for j in [0,1,2,3]]
     gdf = df_melted.groupby('variable')
     dfkeys = list(np.unique(df_melted.variable))
+    grpNames = np.unique(df_melted.Group)
+    
+    f, axes = plt.subplots(6, 4, figsize = (dims[0], dims[1]))
 
-    f, axes = plt.subplots(6, 4, figsize = (10, 15))
+    if len(xpos) == len(grpNames):
+        xdict = {grpNames[i]:int(xorder[i]) for i in range(len(grpNames))}
+    else:
+        xdict = {grpNames[i]:i for i in range(len(grpNames))}
 
-    xticks = grps.translate({ord(c): None for c in string.whitespace}).split(",")
-    cmap = cmap.translate({ord(c): None for c in string.whitespace}).split(",")
-
-    print()
     for name, g in gdf:
+        agg = g.groupby('Group').agg(mean = ('value','mean'),
+                  sem = ('value', 'sem'),
+                  group = ('Group', 'first')
+                  )
+
         ind = np.where(name == np.asarray(dfkeys))[0][0]
         ax = axes[gridLocs[ind]]
+
+        xs = [xdict[i] for i in df.Group]
+        xaggs = [xdict[i] for i in agg.group]
+        xlocs = sorted(xaggs)
+
         if len(cmap) == len(np.unique(df.Group)):
-            sns.barplot(x=g.Group, y=g.value, hue=[cmap[np.where(i == np.unique(df.Group))[0][0]] for i in g.Group], alpha=0.6, ax=ax, capsize=0.2,
-                linewidth=1, edgecolor="0")
-            sns.scatterplot(x=g.Group, y=g.value, hue=[cmap[np.where(i == np.unique(df.Group))[0][0]] for i in g.Group], alpha=0.6, ax=ax, linewidth=1, edgecolor="0")
+            ax.bar(x=xaggs, height="mean", yerr="sem", color=[cmap[xlocs.index(i)] for i in xaggs], alpha=0.4, capsize=2, linewidth=1, edgecolor="black", data=agg)
+            ax.scatter(x=xs, y=g.value, color=[cmap[xlocs.index(i)] for i in xs], alpha=0.6, linewidth=1, edgecolor="black")
         else:
-            sns.barplot(x=g.Group, y=g.value, hue=g.Group, alpha=0.6, ax=ax, capsize=0.2,
-                linewidth=1, edgecolor="0")
-            sns.scatterplot(x=g.Group, y=g.value, hue=g.Group, alpha=0.6, ax=ax, linewidth=1, edgecolor="0")
+            ax.bar(x=xaggs, height="mean", yerr="sem", color="gray", alpha=0.4, capsize=2, linewidth=1, edgecolor="black", data=agg)
+            ax.scatter(x=xs, y=g.value, color="black", alpha=0.6, linewidth=1, edgecolor="black")
         ax.set(ylabel=dfkeys[ind], xlabel="")
-        ax.get_legend().remove()
-
-        grpNames = np.unique(df.Group)
-        if len(xticks) == len(grpNames):
-            ax.set_xticks(range(len(grpNames)))
-            ax.set_xticklabels(xticks, rotation=90)
-
+        if len(xpos) == len(grpNames):
+            ax.set_xticks([int(i) for i in xpos])
+            ax.set_xticklabels(agg.group, rotation=90)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.xaxis.set_tick_params(left='off', direction='out', width=1)
+        ax.yaxis.set_tick_params(bottom='off', direction='out', width=1)
+        #ax.get_legend().remove()
+    
     for i in range((len(gridLocs) - len(gdf))):
         axes[gridLocs[len(gridLocs)-(i+1)]].axis('off')
 
-    sns.despine(bottom = False, left = False)
+    plt.style.use('fast')
+    return f, axes
+
+st.title('Hematology Analysis')
+
+with st.sidebar:
+    uploaded_file = st.file_uploader("Choose a file")
+
+    st.markdown("## Figure Dimensions")
+    dims=st.text_input("Input your figure dimensions as length,height in inches.","")
+
+    st.markdown("## X label")
+    xlb = st.text_input("Input an xlabel if you would like one.","")
+
+    st.markdown("## X Order")
+    xorder = st.text_area("Type the positions that you would like your groups to appear in (e.g. 1,2,4 would position G1 at 1, G2 at 2, and G3 at 4). The number of assignments must equal the total number of unique groups.","", key=1)
+
+    st.markdown("## Group Names")
+    grps = st.text_area("Type group names as a comma separated list in the order of appearance on the x-axis (e.g. Group 1, Group 2, etc...)","", key=2)
+
+    st.markdown("## Colors")
+    cmap = st.text_area("Type colors in the order data appear on the x-axis (e.g. blue, blue, red, red, etc...)","", key=3)   
+
+if uploaded_file:
+    col1, col2 = st.columns(2)
+
+    # To read file as bytes:
+    df = preprocessData(uploaded_file)
+    st.write(df)
+
+    grpNames = np.unique(df.Group)
+    xorder = xorder.translate({ord(c): None for c in string.whitespace}).split(",")
+    dims = dims.translate({ord(c): None for c in string.whitespace}).split(",")
+    xticks = grps.translate({ord(c): None for c in string.whitespace}).split(",")
+    cmap = cmap.translate({ord(c): None for c in string.whitespace}).split(",")
+    gridLocs = [(i,j) for i in [0,1,2,3,4,5] for j in [0,1,2,3]]
+
+    if len(dims) == 2:
+        dims = [int(i) for i in dims]
+        f, axes = generatePlots(df, cmap, xorder, dims)
+    else:
+        f, axes = generatePlots(df, cmap, xorder)
+
+    if len(xticks) == len(grpNames):
+        xorder = [int(i) for i in xorder]
+        for i in gridLocs:
+            axes[i].set_xticks(sorted(xorder))
+            axes[i].set_xticklabels(xticks, rotation=90)
+            axes[i].set_xlim(-1, np.max(xorder)+1)
+
+    if xlb != "":
+        for i in gridLocs:
+            axes[i].set_xlabel(xlb)
+
     plt.tight_layout()
 
     st.pyplot(f)
